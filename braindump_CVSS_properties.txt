@@ -1,0 +1,61 @@
+
+
+
+predict severity class based on CVSS properties
+
+
+CVSS properties as text string
+vs
+as int vector
+-> find out which properties exist and map them to ints
+
+
+
+todo:
+
+import data directly without writing to files https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/text/tokenizer_from_json
+
+use functions only so it will be easy to import the whole script into the python interpreter shell
+
+remove unnecessary stuff
+
+maybe make import of nvd data as a module which will be loaded
+
+generalize:
+make a model that takes a string and processes it to three severity classes
+the string usually consists of space separated keywords
+for each new 'class' of strings there will be a separate network that has to be trained
+
+->
+then develop the NVD api which loads nvd data and makes it easy to create such strings
+but it must always be balanced
+
+
+future:
+
+source reference data / urls and digest information
+even use the first 10 google results for cve
+use twitter to get information about it
+
+-> find the most common keywords across vulns and use them
+- to tag vulnerabilities
+- and classify vulnerabilities
+- -> make an AI which processes data from web about vulns and assigns tags to them
+
+- identify actual keywords by comparing the likelihood of occurences in a wikipedia article for ex. and actual itsec articles
+this way you can filter uninteresting words
+
+
+
+based on cve-id websearch figure out the CVSS properties and thus the CVSS score
+
+
+
+=== make a kanban board on GH ===
+push the whole thing to github maybe w subrepo
+
+
+
+
+use generative ai to make fuzz strings
+use seclists as a resource

@@ -1,0 +1,7 @@
+*.h5
+*.tf
+*.png
+*.tar.gz*
+*.json
+*__pycache__*
+*NVD*
