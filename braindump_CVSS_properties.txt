@@ -50,6 +50,9 @@ this way you can filter uninteresting words
 based on cve-id websearch figure out the CVSS properties and thus the CVSS score
 
 
+digest information from https://nvd.nist.gov/products/cpe/statistics statistics page
+
+
 
 === make a kanban board on GH ===
 push the whole thing to github maybe w subrepo
@@ -59,3 +62,15 @@ push the whole thing to github maybe w subrepo
 
 use generative ai to make fuzz strings
 use seclists as a resource
+
+
+
+
+
+
+
+
+
+todo today
+in readme explain how to obtain the nvd
+write module which loads nvd database
