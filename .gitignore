@@ -4,4 +4,5 @@
 *.tar.gz*
 *.json
 *__pycache__*
-*NVD*
+*raw_NVD*
+*NVD_severity*

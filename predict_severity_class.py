@@ -21,19 +21,7 @@ if os.path.exists(directory):
 # load in memory
 print("loading data to memory")
 # rawDataDir='./raw_NVD_limited/'
-rawDataDir='./raw_NVD/'
-def loadNVD(directory):
-    nvd={}
-    dirContents=os.listdir(rawDataDir)
-    for filename in dirContents:
-        if '.json' in filename:
-            fp=open(F"{rawDataDir}/{filename}", 'r', encoding='utf-8')
-            nvd[filename]=json.load(fp)
-            fp.close()
-        print(F'\r{int(dirContents.index(filename)/len(os.listdir(rawDataDir))*100)}%', end='', flush=True)
-    print()
-    return nvd
-nvd=loadNVD(rawDataDir)
+nvd=loadNVD('./raw_NVD/')
 
 # extract impactScore and description
 print("extracting information")
