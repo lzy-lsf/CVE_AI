@@ -33,7 +33,7 @@ cve_key={
     'description': 'value',
 }
 
-def extract_data(nvd, keys_get):
+def extract(nvd, keys_get):
     passed = 0
     failed = 0
     items_vector=[]

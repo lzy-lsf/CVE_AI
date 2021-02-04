@@ -1,48 +1,31 @@
-import os
-import tensorflow as tf
-import shutil
-import json
-import random
+def doImports():
+    import os
+    import tensorflow as tf
+    import shutil
+    import json
+    import random
 
-from tensorflow.keras import layers
-from tensorflow.keras import losses
-from tensorflow.keras import preprocessing
-from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
+    from tensorflow.keras import layers
+    from tensorflow.keras import losses
+    from tensorflow.keras import preprocessing
+    from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
+
+    import nvd_load
 
 print('imports done')
 
-# disable GPU
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# load in memory
+print("loading data to memory")
+nvd=nvd_load.load_json_nvd('./raw_nvd/')
 
+print("extracting information")
+items_vector=nvd_load.extract(nvd)
+
+# folder structure
 directory='NVD_severity'
 if os.path.exists(directory):
     os.rename(directory, str(random.randint(100000,999999)))
 
-# load in memory
-print("loading data to memory")
-# rawDataDir='./raw_NVD_limited/'
-nvd=loadNVD('./raw_NVD/')
-
-# extract impactScore and description
-print("extracting information")
-def extractItems(nvd):
-    passed = 0
-    failed = 0
-    item_pairs=[]
-    for year in nvd.keys():
-        for item in nvd[year]['CVE_Items']:
-            try:
-                severity = item['impact']['baseMetricV2']['severity'] # severity
-                description = item['cve']['description']['description_data'][0]['value']
-                item_pairs.append((severity, description))
-                passed+=1
-            except:
-                failed+=1
-    print(F"passed: {passed} failed: {failed}")
-    return item_pairs
-item_pairs=extractItems(nvd)
-
-# folder structure
 severityClasses=['LOW', 'MEDIUM', 'HIGH']
 os.makedirs(directory)
 os.makedirs(directory+'/train')
@@ -53,9 +36,9 @@ for folder in severityClasses:
 
 # creating balanced train/test datasets
 print("creating balanced train/test datasets")
-highSevItems=[i for i in item_pairs if i[0] == 'HIGH']
-mediumSevItems=[i for i in item_pairs if i[0] == 'MEDIUM']
-lowSevItems=[i for i in item_pairs if i[0] == 'LOW']
+highSevItems=[i for i in items_vector if i[0] == 'HIGH']
+mediumSevItems=[i for i in items_vector if i[0] == 'MEDIUM']
+lowSevItems=[i for i in items_vector if i[0] == 'LOW']
 
 # get maximum # of items per class
 lengthsOfSevClasses=[len(highSevItems), len(mediumSevItems), len(lowSevItems)]
@@ -129,8 +112,8 @@ max_features = 100000
 embedding_dim = 512
 
 def avgLen(x): return len(x[1])
-item_pairs_len=list(map(avgLen, item_pairs))
-avgLen = int(sum(item_pairs_len)/len(item_pairs_len))
+items_vector_len=list(map(avgLen, items_vector))
+avgLen = int(sum(items_vector_len)/len(items_vector_len))
 sequence_length = avgLen # setting sequence length to average length
 
 vectorize_layer = TextVectorization(
