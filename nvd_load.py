@@ -38,45 +38,43 @@ def extract(nvd, keys_get):
     failed = 0
     items_vector=[]
     for year in nvd.keys():
-        i=0
         for cve_item in nvd[year]['CVE_Items']:
             new_item=()
-            i+=1
             for key in keys_get:
                 cve_val=[]
                 try:
                     if key == 'base_metric_v2_properties':
                         for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[i]]))
-                    elif key == 'cvssv2_properties':
+                    if key == 'cvssv2_properties':
                         for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[i]]))
-                    elif key == 'cvssv2_base_score':
+                    if key == 'cvssv2_base_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV2']['cvssV2'][cve_key[key]]))
-                    elif key == 'bmv2_severity':
+                    if key == 'bmv2_severity':
                         cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    elif key == 'bmv2_exploitability_score':
+                    if key == 'bmv2_exploitability_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    elif key == 'bmv2_impact_score':
+                    if key == 'bmv2_impact_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    elif key == 'cvssv3_properties':
+                    if key == 'cvssv3_properties':
                         for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2']['cvssV3'][cve_key[i]]))
-                    elif key == 'cvssv3_base_score':
+                    if key == 'cvssv3_base_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV3']['cvssV3'][cve_key[key]]))
-                    elif key == 'cvssv3_base_severity':
+                    if key == 'cvssv3_base_severity':
                         cve_val.append(str(cve_item['impact']['baseMetricV3']['cvssV3'][cve_key[key]]))
-                    elif key == 'bmv3_exploitability_score':
+                    if key == 'bmv3_exploitability_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV3'][cve_key[key]]))
-                    elif key == 'bmv3_impact_score':
+                    if key == 'bmv3_impact_score':
                         cve_val.append(str(cve_item['impact']['baseMetricV3'][cve_key[key]]))
-                    elif key == 'description':
+                    if key == 'description':
                         cve_val.append(str(cve_item['cve']['description']['description_data'][0][cve_key[key]]))
-                        print(F"original {new_item} append {tuple(cve_val)} key {key} keys {keys_get}")
+                    # print(F"original {new_item} append {tuple(cve_val)} key {key} keys {keys_get}")
                     new_item=new_item+tuple(cve_val)
                     passed+=1
                 except:
                     failed+=1
                     break
-            items_vector.append(new_item)
-            # if i == 100: return items_vector
+            # due to unknown reason we receive empty values sometimes
+            if len(new_item) == 2: items_vector.append(new_item)
     print(F"passed: {passed}\nfailed: {failed}")
     return items_vector
 

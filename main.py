@@ -1,108 +1,96 @@
-def doImports():
-    import os
-    import tensorflow as tf
-    import shutil
-    import json
-    import random
+import os
+import tensorflow as tf
+import shutil
+import json
+import random
 
-    from tensorflow.keras import layers
-    from tensorflow.keras import losses
-    from tensorflow.keras import preprocessing
-    from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
+from tensorflow.keras import layers
+from tensorflow.keras import losses
+from tensorflow.keras import preprocessing
+from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 
-    import nvd_load
+import nvd_load
 
 print('imports done')
 
-# load in memory
 print("loading data to memory")
-nvd=nvd_load.load_json_nvd('./raw_nvd/')
+nvd=nvd_load.load_json_nvd('./raw_nvd_limited/')
 
 print("extracting information")
-items_vector=nvd_load.extract(nvd)
+# first keyword should be keyword used for output classification
+items_vector=nvd_load.extract(nvd, ['description', 'bmv2_severity'])
 
-# folder structure
-directory='NVD_severity'
-if os.path.exists(directory):
-    os.rename(directory, str(random.randint(100000,999999)))
+labels=['HIGH', 'MEDIUM', 'LOW']
 
-severityClasses=['LOW', 'MEDIUM', 'HIGH']
-os.makedirs(directory)
-os.makedirs(directory+'/train')
-os.makedirs(directory+'/test')
-for folder in severityClasses:
-    os.makedirs(directory+'/train/'+str(folder))
-    os.makedirs(directory+'/test/'+str(folder))
-
-# creating balanced train/test datasets
-print("creating balanced train/test datasets")
-highSevItems=[i for i in items_vector if i[0] == 'HIGH']
-mediumSevItems=[i for i in items_vector if i[0] == 'MEDIUM']
-lowSevItems=[i for i in items_vector if i[0] == 'LOW']
+# balance data according to output labels
+def balance(labels, items_vector):
+    dataset_orig=[]
+    for lab in labels:
+        dataset_orig+=[[i for i in items_vector if i[1] == lab]]
+        # dataset_orig comprises lists of items for each label/class
+        # we assume the first element of an item denotes the label
 
 # get maximum # of items per class
-lengthsOfSevClasses=[len(highSevItems), len(mediumSevItems), len(lowSevItems)]
-maxItems=min(lengthsOfSevClasses)
-print(F"items available per severity class {lengthsOfSevClasses}")
-print("item limit:",maxItems)
+    lengths=[len(i) for i in dataset_orig]
+    item_limit=min(lengths)
+    print(F"items available per class {lengths}")
+    print("item limit:",item_limit)
+    dataset_blncd=[]
+    for dataset in dataset_orig:
+        dataset_blncd+=[random.choice(dataset) for i in range(item_limit)]
+    random.shuffle(dataset_blncd)
+    print(F"{len(dataset_blncd)} items added")
+    return dataset_blncd
+    # return dataset_blncd
 
-# make datasets according to the limit
-lowSevItems=[random.choice(lowSevItems)[1] for i in range(maxItems)]
-mediumSevItems=[random.choice(mediumSevItems)[1] for i in range(maxItems)]
-highSevItems=[random.choice(highSevItems)[1] for i in range(maxItems)]
+print("data balancing")
+dataset_blncd=balance(labels, items_vector)
 
-# write datasets to train/test dirs (balanced)
-reportSev={sev:0 for sev in severityClasses}
-reportDir={'test':0, 'train':0}
-for dataset,sev in [(highSevItems,'HIGH'), (mediumSevItems,'MEDIUM'), (lowSevItems,'LOW')]:
-    filename=0
-    for subdir in ['train', 'test']:
-        datasetSub=[i for i in dataset[:len(dataset)//2]]
-        for desc in datasetSub:
-            filename+=1
-            fp=open(F"{directory}/{subdir}/{sev}/{filename}.txt", 'w', encoding='utf-8')
-            x=fp.write(desc.lower())
-            fp.close()
-            print(F'\rwriting files /{subdir}/{sev}/ {int(filename/maxItems*100)}%', end='', flush=True)
-        datasetSub=dataset[len(dataset)//2:]
-        reportDir[subdir]+=len(dataset)//2
-    reportSev[sev]+=len(dataset)
-print()
-print(F"files in train: {reportDir['train']}\nfiles in test: {reportDir['test']}")
-for key in reportSev.keys():
-    print(F"{key} severity: {reportSev[key]} items")
+# split batches
+# split data and labels
+# split train/val/test
+def split(batch_size, dataset_blncd, train_val_ratio, train_test_ratio):
+    i=0
+    d_batch=[]
+    l_batch=[]
+    datasets={'train':([],[]), 'val':([],[]), 'test':([],[])}
+    for label in dataset_blncd:
+        for item in label:
+            i+=1
+            l_batch.append(item[0])
+            d_batch.append(item[1])
+            if i == batch_size:
+                i=0
+                print(random.random())
+                if random.random() > train_test_ratio:
+                    if random.random() > train_val_ratio:
+                        datasets['train'][0].append(d_batch)
+                        datasets['train'][1].append(l_batch)
+                    else:
+                        datasets['val'][0].append(d_batch)
+                        datasets['val'][1].append(l_batch)
+                else:
+                    datasets['test'][0].append(d_batch)
+                    datasets['test'][1].append(l_batch)
+                d_batch=[]
+                l_batch=[]
+    print(F"{len(datasets['train'][0])} batches in train dataset")
+    print(F"{len(datasets['val'][0])} batches in validate dataset")
+    print(F"{len(datasets['test'][0])} batches in test dataset")
+    print(F"train/test datasets ratio {train_test_ratio}")
+    print(F"train/validate datasets ratio {train_val_ratio}")
+    raw_ds=[]
+    for key in datasets.keys():
+        data_tensor=tf.data.Dataset.from_tensor_slices(datasets[key][0])
+        label_tensor=tf.data.Dataset.from_tensor_slices(datasets[key][1])
+        raw_ds+=[tf.data.Dataset.zip((data_tensor, label_tensor))]
+    return raw_ds
+    # merge datasets into train/val/test datasets
 
-print("Severity classes:")
-for sevClass in range(len(severityClasses)):
-    print(F"{sevClass} - {severityClasses[sevClass]}")
+raw_ds=split(32, dataset_blncd, 0.2, 0.5)
+"""
 
-# import datasets
-print('importing datasets from raw files')
-batch_size=32
-seed=42
-
-# train dataset
-raw_train_ds = tf.keras.preprocessing.text_dataset_from_directory(
-    F"{directory}/train",
-    batch_size=batch_size,
-    validation_split=0.2, # 80% will be used for training, 20% will be used for validation
-    subset='training',
-    seed=seed)
-
-# validation dataset
-raw_val_ds = tf.keras.preprocessing.text_dataset_from_directory(
-    F"{directory}/train",
-    batch_size=batch_size,
-    validation_split=0.2,
-    subset='validation',
-    seed=seed)
-
-# test dataset
-raw_test_ds = tf.keras.preprocessing.text_dataset_from_directory(
-    F"{directory}/test", 
-    batch_size=batch_size)
-
-print(raw_train_ds.class_names)
+print(raw_ds[0].class_names)
 
 # prepare the dataset for training
 print('preparing dataset for training')
@@ -161,9 +149,8 @@ model = tf.keras.Sequential([
     layers.Dropout(0.2),
     layers.GlobalAveragePooling1D(), # reduces the length of each input vector to the average sequence length of all vectors
     layers.Dropout(0.2),
-    layers.Dense(128, activation='relu'),
     layers.Dense(64, activation='relu'),
-    layers.Dense(3)])
+    layers.Dense(len(labels))])
 
 model.summary()
 
@@ -200,9 +187,9 @@ export_model.compile(
 model.save('nvd_sev.h5')
 
 # manually confirm accuracy
-highPred=export_model.predict(highSevItems)
-medPred=export_model.predict(mediumSevItems)
-lowPred=export_model.predict(lowSevItems)
+highPred=export_model.predict(class2)
+medPred=export_model.predict(class1)
+lowPred=export_model.predict(class0)
 numItems=len(highPred)
 
 stats=[0,0,0]
@@ -221,7 +208,7 @@ for i in lowPred:
 avg_p=sum(stats)/3/14672
 
 
-"""
+""
 Settings results
 
 0.4009
