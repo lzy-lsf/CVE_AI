@@ -20,13 +20,13 @@ print("extracting information")
 # first keyword should be keyword used for output classification
 items_vector=nvd_load.extract(nvd, ['description', 'bmv2_severity'])
 
-labels=['HIGH', 'MEDIUM', 'LOW']
+labelmap={'HIGH':2, 'MEDIUM':1, 'LOW':0}
 
 # balance data according to output labels
-def balance(labels, items_vector):
+def balance(labelmap, items_vector):
     dataset_orig=[]
-    for lab in labels:
-        dataset_orig+=[[i for i in items_vector if i[1] == lab]]
+    for lab in labelmap.keys():
+        dataset_orig+=[[(i[0].lower(),labelmap[lab]) for i in items_vector if i[1] == lab]]
         # dataset_orig comprises lists of items for each label/class
         # we assume the first element of an item denotes the label
 
@@ -41,10 +41,9 @@ def balance(labels, items_vector):
     random.shuffle(dataset_blncd)
     print(F"{len(dataset_blncd)} items added")
     return dataset_blncd
-    # return dataset_blncd
 
 print("data balancing")
-dataset_blncd=balance(labels, items_vector)
+dataset_blncd=balance(labelmap, items_vector)
 
 # split batches
 # split data and labels
@@ -54,43 +53,60 @@ def split(batch_size, dataset_blncd, train_val_ratio, train_test_ratio):
     d_batch=[]
     l_batch=[]
     datasets={'train':([],[]), 'val':([],[]), 'test':([],[])}
-    for label in dataset_blncd:
-        for item in label:
-            i+=1
-            l_batch.append(item[0])
-            d_batch.append(item[1])
-            if i == batch_size:
-                i=0
-                print(random.random())
-                if random.random() > train_test_ratio:
-                    if random.random() > train_val_ratio:
-                        datasets['train'][0].append(d_batch)
-                        datasets['train'][1].append(l_batch)
-                    else:
-                        datasets['val'][0].append(d_batch)
-                        datasets['val'][1].append(l_batch)
+    for item in dataset_blncd:
+        i+=1
+        l_batch.append(item[0])
+        d_batch.append(item[1])
+        if i == batch_size:
+            i=0
+            if random.random() > train_test_ratio:
+                if random.random() > train_val_ratio:
+                    datasets['train'][0].append(d_batch)
+                    datasets['train'][1].append(l_batch)
                 else:
-                    datasets['test'][0].append(d_batch)
-                    datasets['test'][1].append(l_batch)
-                d_batch=[]
-                l_batch=[]
+                    datasets['val'][0].append(d_batch)
+                    datasets['val'][1].append(l_batch)
+            else:
+                datasets['test'][0].append(d_batch)
+                datasets['test'][1].append(l_batch)
+            d_batch=[]
+            l_batch=[]
     print(F"{len(datasets['train'][0])} batches in train dataset")
     print(F"{len(datasets['val'][0])} batches in validate dataset")
     print(F"{len(datasets['test'][0])} batches in test dataset")
     print(F"train/test datasets ratio {train_test_ratio}")
     print(F"train/validate datasets ratio {train_val_ratio}")
-    raw_ds=[]
-    for key in datasets.keys():
-        data_tensor=tf.data.Dataset.from_tensor_slices(datasets[key][0])
-        label_tensor=tf.data.Dataset.from_tensor_slices(datasets[key][1])
-        raw_ds+=[tf.data.Dataset.zip((data_tensor, label_tensor))]
-    return raw_ds
+    print(F"batch size {len(datasets['train'][0][0])}")
     # merge datasets into train/val/test datasets
+    
+    data_tensor=tf.data.Dataset.from_tensor_slices(datasets['train'][0])
+    label_tensor=tf.data.Dataset.from_tensor_slices(datasets['train'][1])
+    train_ds=tf.data.Dataset.zip((label_tensor, data_tensor))
+    data_tensor=tf.data.Dataset.from_tensor_slices(datasets['val'][0])
+    label_tensor=tf.data.Dataset.from_tensor_slices(datasets['val'][1])
+    val_ds=tf.data.Dataset.zip((label_tensor, data_tensor))
+    data_tensor=tf.data.Dataset.from_tensor_slices(datasets['test'][0])
+    label_tensor=tf.data.Dataset.from_tensor_slices(datasets['test'][1])
+    test_ds=tf.data.Dataset.zip((label_tensor, data_tensor))
+    return train_ds,val_ds,test_ds
 
-raw_ds=split(32, dataset_blncd, 0.2, 0.5)
+train_ds,val_ds,test_ds=split(32, dataset_blncd, 0.2, 0.5)
+
+
+"""
+legacy code/format
+next(it)[1] <tf.Tensor: shape=(32,), dtype=int32, numpy=array([2, 1, 2, 1, 1, 2, 1, 2, 1, 0, 2, 1, 1, 0, 2, 2, 0, 2, 2, 2, 0, 1,2, 2, 2, 2, 0, 2, 1, 0, 1, 0])>
+next(it)[0] <tf.Tensor: shape=(32,), dtype=string, numpy=array([b'palo alto networks pan-os 4.0.x before 4.0.9 and 4.1.x before 4.1.3 stores cleartext ldap bind passwords in authd.log, which allows context-dependent attackers to obtain sensitive information by reading this file, aka ref id 35493.',b"an information disclosure v
+
+raw_raw_ds[0] = tf.keras.preprocessing.text_dataset_from_directory(
+    F"NVD_severity/train",
+    batch_size=32,
+    validation_split=0.2, # 80% will be used for training, 20% will be used for validation
+    subset='training',
+    seed=42)
 """
 
-print(raw_ds[0].class_names)
+# print(raw_ds[0].class_names)
 
 # prepare the dataset for training
 print('preparing dataset for training')
@@ -99,10 +115,9 @@ print('preparing dataset for training')
 max_features = 100000
 embedding_dim = 512
 
-def avgLen(x): return len(x[1])
-items_vector_len=list(map(avgLen, items_vector))
-avgLen = int(sum(items_vector_len)/len(items_vector_len))
-sequence_length = avgLen # setting sequence length to average length
+def avgLen(x): return len(x[0])
+items_vector_len=list(map(avgLen, dataset_blncd))
+sequence_length = int(sum(items_vector_len)/len(items_vector_len)) # setting sequence length to average length
 
 vectorize_layer = TextVectorization(
     # standardize=custom_standardization,
@@ -112,7 +127,7 @@ vectorize_layer = TextVectorization(
 
 # adapt: map strings (words) to integers
 # Make a text-only dataset (without labels), then call adapt
-train_text = raw_train_ds.map(lambda x, y: x)
+train_text = raw_ds[0].map(lambda x, y: x)
 vectorize_layer.adapt(train_text)
 
 # check result, preprocess some examples
@@ -121,26 +136,26 @@ def vectorize_text(text, label):
     return vectorize_layer(text), label
 
 # retrieve a batch (32 reviews and labels) from the dataset
-# text_batch, label_batch = next(iter(raw_train_ds))
-# first_review, first_label = text_batch[0], label_batch[0]
-# print("Review", first_review)
-# print("Label", raw_train_ds.class_names[first_label])
-# print("Vectorized review", vectorize_text(first_review, first_label))
-# print("1287 ---> ",vectorize_layer.get_vocabulary()[1287])
-# print(" 313 ---> ",vectorize_layer.get_vocabulary()[313])
-# print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
+text_batch, label_batch = next(iter(raw_raw_ds[0]))
+first_review, first_label = text_batch[0], label_batch[0]
+print("Review", first_review)
+print("Label", raw_raw_ds[0].class_names[first_label])
+print("Vectorized review", vectorize_text(first_review, first_label))
+print("1287 ---> ",vectorize_layer.get_vocabulary()[1287])
+print(" 313 ---> ",vectorize_layer.get_vocabulary()[313])
+print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
 
 # apply to all sets, train, val, test must be the same
-train_ds = raw_train_ds.map(vectorize_text)
-val_ds = raw_val_ds.map(vectorize_text)
-test_ds = raw_test_ds.map(vectorize_text)
+raw_ds[0] = raw_ds[0].map(vectorize_text)
+raw_ds[1] = raw_ds[1].map(vectorize_text)
+raw_ds[2] = raw_ds[2].map(vectorize_text)
 
 # tuning performance
 AUTOTUNE = tf.data.AUTOTUNE
 
-train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
-val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
-test_ds = test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+raw_ds[0] = raw_ds[0].cache().prefetch(buffer_size=AUTOTUNE)
+raw_ds[1] = raw_ds[1].cache().prefetch(buffer_size=AUTOTUNE)
+raw_ds[2] = raw_ds[2].cache().prefetch(buffer_size=AUTOTUNE)
 
 
 # compile the model
@@ -150,7 +165,7 @@ model = tf.keras.Sequential([
     layers.GlobalAveragePooling1D(), # reduces the length of each input vector to the average sequence length of all vectors
     layers.Dropout(0.2),
     layers.Dense(64, activation='relu'),
-    layers.Dense(len(labels))])
+    layers.Dense(len(labelmap.keys()))])
 
 model.summary()
 
@@ -164,12 +179,12 @@ model.compile(
 
 # train
 history = model.fit(
-    train_ds,
-    validation_data=val_ds,
+    raw_ds[0],
+    validation_data=raw_ds[1],
     epochs=5)
 
 # evaluate the model
-loss, accuracy = model.evaluate(test_ds)
+loss, accuracy = model.evaluate(raw_ds[2])
 print("Loss: ", loss)
 print("Accuracy: ", accuracy)
 
@@ -208,7 +223,7 @@ for i in lowPred:
 avg_p=sum(stats)/3/14672
 
 
-""
+"""
 Settings results
 
 0.4009
