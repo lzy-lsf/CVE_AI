@@ -26,7 +26,8 @@ labelmap={'HIGH':2, 'MEDIUM':1, 'LOW':0}
 def balance(labelmap, items_vector):
     dataset_orig=[]
     for lab in labelmap.keys():
-        dataset_orig+=[[(i[0].lower(),labelmap[lab]) for i in items_vector if i[1] == lab]]
+        dataset_orig+=[[(i[0].lower(),labelmap[lab]) for i in items_vector if i[1] == lab]] # convert label to string
+        # dataset_orig+=[[(i[0].lower(),lab) for i in items_vector if i[1] == lab]]
         # dataset_orig comprises lists of items for each label/class
         # we assume the first element of an item denotes the label
 
@@ -36,14 +37,15 @@ def balance(labelmap, items_vector):
     print(F"items available per class {lengths}")
     print("item limit:",item_limit)
     dataset_blncd=[]
-    for dataset in dataset_orig:
-        dataset_blncd+=[random.choice(dataset) for i in range(item_limit)]
-    random.shuffle(dataset_blncd)
+    for item in dataset_orig:
+        dataset_blncd+=[random.choice(item) for i in range(item_limit)]
     print(F"{len(dataset_blncd)} items added")
+    random.shuffle(dataset_blncd)
     return dataset_blncd
 
 print("data balancing")
 dataset_blncd=balance(labelmap, items_vector)
+# not shuffled
 
 # split batches
 # split data and labels
@@ -92,28 +94,58 @@ def split(batch_size, dataset_blncd, train_val_ratio, train_test_ratio):
 
 train_ds,val_ds,test_ds=split(32, dataset_blncd, 0.2, 0.5)
 
+string_ds=[i[0] for i in dataset_blncd]
+label_ds=[i[1] for i in dataset_blncd]
+
+label_ds=tf.data.Dataset.from_tensor_slices(label_ds)
+string_ds=tf.data.Dataset.from_tensor_slices(string_ds)
+dataset=tf.data.Dataset.zip((string_ds, label_ds))
+
+dataset.class_names = ['HIGH', 'LOW', 'MEDIUM']
+dataset=dataset.shuffle(10000) # see if it can replace your shuffle methods
+# shuffle_size only for datasets which are too large and don't fit in memory
+dataset=dataset.batch(32)
+
+train_ds=dataset.shard(num_shards=2, index=0)
+test_ds=dataset.shard(num_shards=2, index=1)
+
+val_ds=train_ds.take()
+
+# -> train old model with respect to correct order of class names
+
 
 """
 legacy code/format
 next(it)[1] <tf.Tensor: shape=(32,), dtype=int32, numpy=array([2, 1, 2, 1, 1, 2, 1, 2, 1, 0, 2, 1, 1, 0, 2, 2, 0, 2, 2, 2, 0, 1,2, 2, 2, 2, 0, 2, 1, 0, 1, 0])>
 next(it)[0] <tf.Tensor: shape=(32,), dtype=string, numpy=array([b'palo alto networks pan-os 4.0.x before 4.0.9 and 4.1.x before 4.1.3 stores cleartext ldap bind passwords in authd.log, which allows context-dependent attackers to obtain sensitive information by reading this file, aka ref id 35493.',b"an information disclosure v
 
-raw_raw_ds[0] = tf.keras.preprocessing.text_dataset_from_directory(
+legacy = tf.keras.preprocessing.text_dataset_from_directory(
     F"NVD_severity/train",
+    label_mode='int',
     batch_size=32,
     validation_split=0.2, # 80% will be used for training, 20% will be used for validation
     subset='training',
     seed=42)
+
+
+
+  Returns:
+    A `tf.data.Dataset` object.
+    [...]
+      - Otherwise, it yields a tuple `(texts, labels)`, where `texts`
+        has shape `(batch_size,)` and `labels` follows the format described
+        below.
+    - if `label_mode` is `int`, the labels are an `int32` tensor of shape
+      `(batch_size,)`.
 """
 
-# print(raw_ds[0].class_names)
 
 # prepare the dataset for training
 print('preparing dataset for training')
 
 # TextVectorization layer converts text to lowercase and strips punctuation by default
-max_features = 100000
-embedding_dim = 512
+max_features = 5000
+embedding_dim = 64
 
 def avgLen(x): return len(x[0])
 items_vector_len=list(map(avgLen, dataset_blncd))
@@ -127,7 +159,7 @@ vectorize_layer = TextVectorization(
 
 # adapt: map strings (words) to integers
 # Make a text-only dataset (without labels), then call adapt
-train_text = raw_ds[0].map(lambda x, y: x)
+train_text = train_ds.map(lambda x, y: x)
 vectorize_layer.adapt(train_text)
 
 # check result, preprocess some examples
@@ -136,26 +168,26 @@ def vectorize_text(text, label):
     return vectorize_layer(text), label
 
 # retrieve a batch (32 reviews and labels) from the dataset
-text_batch, label_batch = next(iter(raw_raw_ds[0]))
+text_batch, label_batch = next(iter(train_ds))
 first_review, first_label = text_batch[0], label_batch[0]
 print("Review", first_review)
-print("Label", raw_raw_ds[0].class_names[first_label])
+print("Label", train_ds.class_names[first_label])
 print("Vectorized review", vectorize_text(first_review, first_label))
 print("1287 ---> ",vectorize_layer.get_vocabulary()[1287])
 print(" 313 ---> ",vectorize_layer.get_vocabulary()[313])
 print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
 
 # apply to all sets, train, val, test must be the same
-raw_ds[0] = raw_ds[0].map(vectorize_text)
-raw_ds[1] = raw_ds[1].map(vectorize_text)
-raw_ds[2] = raw_ds[2].map(vectorize_text)
+train_ds = train_ds.map(vectorize_text)
+# raw_ds[1] = raw_ds[1].map(vectorize_text)
+test_ds = test_ds.map(vectorize_text)
 
 # tuning performance
 AUTOTUNE = tf.data.AUTOTUNE
 
-raw_ds[0] = raw_ds[0].cache().prefetch(buffer_size=AUTOTUNE)
-raw_ds[1] = raw_ds[1].cache().prefetch(buffer_size=AUTOTUNE)
-raw_ds[2] = raw_ds[2].cache().prefetch(buffer_size=AUTOTUNE)
+train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+# raw_ds[1] = raw_ds[1].cache().prefetch(buffer_size=AUTOTUNE)
+test_ds = test_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
 
 # compile the model
@@ -179,12 +211,12 @@ model.compile(
 
 # train
 history = model.fit(
-    raw_ds[0],
-    validation_data=raw_ds[1],
+    train_ds,
+    # validation_data=raw_ds[1],
     epochs=5)
 
 # evaluate the model
-loss, accuracy = model.evaluate(raw_ds[2])
+loss, accuracy = model.evaluate(test_ds)
 print("Loss: ", loss)
 print("Accuracy: ", accuracy)
 
