@@ -1,6 +1,18 @@
 
 
 
+
+
+
+
+
+
+accuracy drops during training so do smth
+
+
+
+-------------------
+
 predict severity class based on CVSS properties
 
 

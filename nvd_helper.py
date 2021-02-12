@@ -1,5 +1,6 @@
 import os
 import json
+import random
 
 
 def load_json_nvd(directory):
@@ -79,3 +80,31 @@ def extract(nvd, keys_get):
     return items_vector
 
 
+
+# balance data according to output labels
+def balance(labelmap, items_vector):
+    """
+    Balances items so that each label has the same number of items
+    Transforms all labels to their respective label-indices
+    
+    items_vector is a list of tuples where the first element of the tuple represents the label
+
+    Returns: A list containing all items as tuples (string, label)
+    """
+    dataset_orig=[]
+    for lab in labelmap.keys():
+        dataset_orig+=[[(i[0].lower(),labelmap[lab]) for i in items_vector if i[1] == lab]]
+
+    # calculate item cap
+    lengths=[len(i) for i in dataset_orig]
+    item_limit=min(lengths)
+    print(F"items available per label {lengths}")
+    print("item limit:", item_limit)
+
+    # randomly choose item_limit items from each label
+    dataset_blncd=[]
+    for label_group in dataset_orig:
+        dataset_blncd+=[random.choice(label_group) for i in range(item_limit)]
+    print(F"{len(dataset_blncd)} items added")
+    random.shuffle(dataset_blncd)
+    return dataset_blncd
