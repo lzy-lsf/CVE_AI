@@ -1,6 +1,9 @@
 import os
 import json
 import random
+import tensorflow as tf
+
+from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 
 
 def load_json_nvd(directory):
@@ -11,7 +14,7 @@ def load_json_nvd(directory):
             fp=open(F"{directory}/{filename}", 'r', encoding='utf-8')
             nvd[filename]=json.load(fp)
             fp.close()
-        print(F'\r{int(dir_list.index(filename)/len(os.listdir(directory))*100)}%', end='', flush=True)
+        print(F'\rloading data {int(dir_list.index(filename)/len(os.listdir(directory))*100)}%', end='', flush=True)
     print()
     return nvd
 
@@ -33,6 +36,7 @@ cve_key={
     'bmv3_impact_score': 'impactScore',
     'description': 'value',
 }
+
 
 def extract(nvd, keys_get):
     passed = 0
@@ -108,3 +112,74 @@ def balance(labelmap, items_vector):
     print(F"{len(dataset_blncd)} items added")
     random.shuffle(dataset_blncd)
     return dataset_blncd
+
+
+def make_ds(dataset_blncd, batch_size, shuffle_size):
+    string_ds=[i[0] for i in dataset_blncd]
+    label_ds=[i[1] for i in dataset_blncd]
+
+    label_ds=tf.data.Dataset.from_tensor_slices(label_ds)
+    string_ds=tf.data.Dataset.from_tensor_slices(string_ds)
+    dataset=tf.data.Dataset.zip((string_ds, label_ds))
+
+    dataset=dataset.batch(batch_size)
+
+    dataset_len=len(dataset)
+    train_size=int(0.7 * dataset_len)
+    val_size=int(0.15 * dataset_len)
+    test_size=int(0.15 * dataset_len)
+
+    train_ds = dataset.take(train_size).shuffle(shuffle_size, reshuffle_each_iteration=True)
+    test_ds = dataset.skip(train_size)
+    val_ds = dataset.skip(test_size)
+    test_ds = dataset.take(test_size)
+
+    return train_ds,val_ds,test_ds
+
+
+def preprocess(train_ds, val_ds, test_ds, batch_size, ds_len, max_features):
+    # TextVectorization layer converts text to lowercase and strips punctuation by default
+
+    sequence_length=int(sum(ds_len)/len(ds_len)) # setting sequence length to average length
+
+    vectorize_layer = TextVectorization(
+        # standardize=custom_standardization,
+        max_tokens=max_features,
+        output_mode='int', # each token has a corresponding number
+        output_sequence_length=sequence_length)
+
+    # adapt: map strings (words) to integers
+    # Make a text-only dataset (without labels), then call adapt
+    train_text = train_ds.map(lambda x, y: x)
+    vectorize_layer.adapt(train_text)
+
+    def vectorize_text(text, label):
+        text = tf.expand_dims(text, -1)
+        return vectorize_layer(text), label
+        
+    """
+    # retrieve a batch (32 reviews and labels) from the dataset
+    text_batch, label_batch = next(iter(train_ds))
+    first_review, first_label = text_batch[0], label_batch[0]
+    print("Review", first_review)
+    print("Label", train_ds.class_names[first_label])
+    print("Vectorized review", vectorize_text(first_review, first_label))
+    print("1287 ---> ",vectorize_layer.get_vocabulary()[1287])
+    print(" 313 ---> ",vectorize_layer.get_vocabulary()[313])
+    print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
+    """
+
+    # apply vectorization to all datasets so train, val, test are the same
+    train_ds = train_ds.map(vectorize_text)
+    val_ds = val_ds.map(vectorize_text)
+    test_ds = test_ds.map(vectorize_text)
+
+    AUTOTUNE = tf.data.AUTOTUNE
+    train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+    val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+    test_ds = test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+
+    return train_ds,val_ds,test_ds
+
+
+# functions for preprocess
