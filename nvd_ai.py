@@ -8,7 +8,8 @@ import datetime
 import nvd_helper
 
 
-nvd_properties=['description', 'bmv2_severity']
+# last keyword should be output-labels
+nvd_properties=['bmv3_impact_score', 'bmv2_exploitability_score']
 directory='./raw_nvd/'
 modelstr='nvd'
 for i in nvd_properties:
@@ -17,17 +18,11 @@ for i in nvd_properties:
 
 nvd=nvd_helper.load_json_nvd(directory)
 
-# first keyword should be output-labels
-
 items_vector=nvd_helper.extract(nvd, nvd_properties)
-
-del(nvd)
 
 labelmap={'HIGH':2, 'MEDIUM':1, 'LOW':0}
 
 dataset_blncd=nvd_helper.balance(labelmap, items_vector)
-
-del(items_vector)
 
 
 """
@@ -53,6 +48,8 @@ epoch_num= 3
 
 # average length of strings
 def avgLen(x): return len(x[0])
+
+
 ds_len=list(map(avgLen, dataset_blncd))
 
 train_ds, val_ds, test_ds = nvd_helper.make_ds(dataset_blncd, batch_size, shuffle_size)
@@ -153,9 +150,11 @@ embedding_dim = 128
 max_features= 100000
 embedding_dim= 512
 
+0.3703
 3 epoch
 max_features = 5000
 embedding_dim = 64
 2x additional 64 nodes
+
 Todo
 """

@@ -18,68 +18,73 @@ def load_json_nvd(directory):
     print()
     return nvd
 
-# extract a vector containing different combinations of data using this function
 
 # properties are generally suitable for the input layer
 # while scores and severity rankings are suitable for the output layer
-cve_key={
-    'base_metric_v2_properties': ['obtainAllPrivilege', 'obtainUserPrivilege', 'obtainOtherPrivilege', 'userInteractionRequired'],
-    'cvssv2_properties': ['accessVector', 'accessComplexity', 'authentication', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact'],
-    'cvssv2_base_score': 'baseScore',
-    'bmv2_severity': 'severity',
-    'bmv2_exploitability_score': 'exploitabilityScore',
-    'bmv2_impact_score': 'impactScore',
-    'cvssv3_properties': ['attackVector', 'attackComplexity', 'privilegesRequired', 'userInteractionRequired', 'scope', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact'],
-    'cvssv3_base_score': 'baseScore',
-    'cvssv3_base_severity': 'baseSeverity',
-    'bmv3_exploitability_score': 'exploitabilityScore',
-    'bmv3_impact_score': 'impactScore',
-    'description': 'value',
-}
+def get_json_value(key, cve_item):
+    if key == 'base_metric_v2_properties':
+        return [cve_item['impact']['baseMetricV2'][i] for i in ['obtainAllPrivilege', 'obtainUserPrivilege', 'obtainOtherPrivilege', 'userInteractionRequired']]
+    elif key == 'cvssv2_properties':
+        return [cve_item['impact']['baseMetricV2']['cvssV2'][i] for i in ['accessComplexity', 'authentication', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']]
+    elif key == 'cvssv2_base_score':
+        return cve_item['impact']['baseMetricV2']['cvssV2']['baseScore']
+    elif key == 'bmv2_severity':
+        return cve_item['impact']['baseMetricV2']['severity']
+    elif key == 'bmv2_exploitability_score':
+        return cve_item['impact']['baseMetricV2']['exploitabilityScore']
+    elif key == 'bmv2_impact_score':
+        return cve_item['impact']['baseMetricV2']['impactScore']
+    elif key == 'cvssv3_properties':
+        return [cve_item['impact']['baseMetricV2']['cvssV3'][i] for i in ['attackVector', 'attackComplexity', 'privilegesRequired', 'userInteractionRequired', 'scope', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']]
+    elif key == 'cvssv3_base_score':
+        return cve_item['impact']['baseMetricV3']['cvssV3']['baseScore']
+    elif key == 'cvssv3_base_severity':
+        return cve_item['impact']['baseMetricV3']['cvssV3']['baseSeverity']
+    elif key == 'bmv3_exploitability_score':
+        return cve_item['impact']['baseMetricV3']['exploitabilityScore']
+    elif key == 'bmv3_impact_score':
+        return cve_item['impact']['baseMetricV3']['impactScore']
+    elif key == 'description':
+        return cve_item['cve']['description']['description_data'][0]['value']
 
 
+# cve_item=nvd['nvdcve-1.1-2018.json']['CVE_Items'][0]
+
+# extract a vector containing different combinations of data using this function
 def extract(nvd, keys_get):
     passed = 0
     failed = 0
     items_vector=[]
     for year in nvd.keys():
         for cve_item in nvd[year]['CVE_Items']:
-            new_item=()
+            new_item=[]
             for key in keys_get:
                 cve_val=[]
                 try:
-                    if key == 'base_metric_v2_properties':
-                        for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[i]]))
-                    if key == 'cvssv2_properties':
-                        for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[i]]))
-                    if key == 'cvssv2_base_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV2']['cvssV2'][cve_key[key]]))
-                    if key == 'bmv2_severity':
-                        cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    if key == 'bmv2_exploitability_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    if key == 'bmv2_impact_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV2'][cve_key[key]]))
-                    if key == 'cvssv3_properties':
-                        for i in key: cve_val.append(str(cve_item['impact']['baseMetricV2']['cvssV3'][cve_key[i]]))
-                    if key == 'cvssv3_base_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV3']['cvssV3'][cve_key[key]]))
-                    if key == 'cvssv3_base_severity':
-                        cve_val.append(str(cve_item['impact']['baseMetricV3']['cvssV3'][cve_key[key]]))
-                    if key == 'bmv3_exploitability_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV3'][cve_key[key]]))
-                    if key == 'bmv3_impact_score':
-                        cve_val.append(str(cve_item['impact']['baseMetricV3'][cve_key[key]]))
-                    if key == 'description':
-                        cve_val.append(str(cve_item['cve']['description']['description_data'][0][cve_key[key]]))
-                    # print(F"original {new_item} append {tuple(cve_val)} key {key} keys {keys_get}")
-                    new_item=new_item+tuple(cve_val)
+                    value=get_json_value(key, cve_item)
+                    if type(value) == list:
+                        value=' '.join([str(i) for i in value])
+                        # if type(value[0]) == str: # and not value[0].isdigit() add int support
+                        #     value=[' '.join(value)]
+                        # else:
+                        #     value=[' '.join([str(i) for i in value])]
+                    elif type(value) == int:
+                        value=str(value)
+                    # convert bools to binary ints
+                    else:
+                        value=str(value)
+                    # print(value)
+                        # todo find a way to handle INTS, make a seperate model for int input
+                        
+                    # print(F"original {new_item} append {value} key {key} keys {keys_get}")
+                    new_item.append(value)
                     passed+=1
                 except:
                     failed+=1
-                    break
-            # due to unknown reason we receive empty values sometimes
-            if len(new_item) == 2: items_vector.append(new_item)
+                break
+            if len(new_item) == len(keys_get):
+                new_item=[new_item[0]]+[' '.join(new_item[1:])]
+                items_vector.append(new_item) # due to unknown reason we receive empty values sometimes
     print(F"passed: {passed}\nfailed: {failed}")
     return items_vector
 
@@ -133,6 +138,8 @@ def make_ds(dataset_blncd, batch_size, shuffle_size):
     test_ds = dataset.skip(train_size)
     val_ds = dataset.skip(test_size)
     test_ds = dataset.take(test_size)
+
+    print(F"dataset sizes (train/val/test) {len(train_ds)}/{len(val_ds)}/{len(test_ds)}")
 
     return train_ds,val_ds,test_ds
 
