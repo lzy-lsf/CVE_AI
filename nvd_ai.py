@@ -8,19 +8,23 @@ import datetime
 import nvd_helper
 
 
-# last keyword should be output-labels
-nvd_properties=['bmv3_impact_score', 'bmv2_exploitability_score']
+string=['cvssv3_properties']
+label=['cvssv3_base_score']
+nvd_properties=(string, label)
 directory='./raw_nvd/'
 modelstr='nvd'
 for i in nvd_properties:
-    modelstr+='_'+str(i)
+    for j in i:
+        modelstr+='_'+j
 
 
 nvd=nvd_helper.load_json_nvd(directory)
 
 items_vector=nvd_helper.extract(nvd, nvd_properties)
 
-labelmap={'HIGH':2, 'MEDIUM':1, 'LOW':0}
+labelmap=list(set([i[1] for i in items_vector]))
+labelmap={labelmap[i]:i for i in range(len(labelmap))}
+print(labelmap)
 
 dataset_blncd=nvd_helper.balance(labelmap, items_vector)
 
@@ -66,7 +70,6 @@ model = tf.keras.Sequential([
     tf.keras.layers.GlobalAveragePooling1D(), # reduces the length of each input vector to the average sequence length of all vectors
     tf.keras.layers.Dense(64, activation='relu'),
     tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(64, activation='relu'),
     tf.keras.layers.Dense(len(labelmap.keys()))])
 
 model.compile(

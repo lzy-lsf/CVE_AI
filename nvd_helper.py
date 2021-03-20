@@ -23,9 +23,9 @@ def load_json_nvd(directory):
 # while scores and severity rankings are suitable for the output layer
 def get_json_value(key, cve_item):
     if key == 'base_metric_v2_properties':
-        return [cve_item['impact']['baseMetricV2'][i] for i in ['obtainAllPrivilege', 'obtainUserPrivilege', 'obtainOtherPrivilege', 'userInteractionRequired']]
+        return ' '.join([cve_item['impact']['baseMetricV2'][i] for i in ['obtainAllPrivilege', 'obtainUserPrivilege', 'obtainOtherPrivilege', 'userInteractionRequired']])
     elif key == 'cvssv2_properties':
-        return [cve_item['impact']['baseMetricV2']['cvssV2'][i] for i in ['accessComplexity', 'authentication', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']]
+        return ' '.join([cve_item['impact']['baseMetricV2']['cvssV2'][i] for i in ['accessComplexity', 'authentication', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']])
     elif key == 'cvssv2_base_score':
         return cve_item['impact']['baseMetricV2']['cvssV2']['baseScore']
     elif key == 'bmv2_severity':
@@ -35,7 +35,7 @@ def get_json_value(key, cve_item):
     elif key == 'bmv2_impact_score':
         return cve_item['impact']['baseMetricV2']['impactScore']
     elif key == 'cvssv3_properties':
-        return [cve_item['impact']['baseMetricV2']['cvssV3'][i] for i in ['attackVector', 'attackComplexity', 'privilegesRequired', 'userInteractionRequired', 'scope', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']]
+        return ' '.join([cve_item['impact']['baseMetricV2']['cvssV3'][i] for i in ['attackVector', 'attackComplexity', 'privilegesRequired', 'userInteractionRequired', 'scope', 'confidentialityImpact', 'integrityImpact', 'availabilityImpact']])
     elif key == 'cvssv3_base_score':
         return cve_item['impact']['baseMetricV3']['cvssV3']['baseScore']
     elif key == 'cvssv3_base_severity':
@@ -55,36 +55,46 @@ def extract(nvd, keys_get):
     passed = 0
     failed = 0
     items_vector=[]
+    i=0
     for year in nvd.keys():
         for cve_item in nvd[year]['CVE_Items']:
-            new_item=[]
-            for key in keys_get:
-                cve_val=[]
-                try:
-                    value=get_json_value(key, cve_item)
-                    if type(value) == list:
-                        value=' '.join([str(i) for i in value])
-                        # if type(value[0]) == str: # and not value[0].isdigit() add int support
-                        #     value=[' '.join(value)]
+            i+=1
+            # if i == 200:
+            #     print(F"passed: {passed}\nfailed: {failed}")
+            #     return items_vector
+            new_item=[[],[]]
+            for iwaldihasd in range(2):
+                for subkey in keys_get[iwaldihasd]:
+                    try:
+                        # print(F"getting value for key {subkey} ")
+                        value=get_json_value(subkey, cve_item)
+                        # print(F"{value}")
+                        # if type(value) == list:
+                        #     value=' '.join([str(i) for i in value])
+                        #     # if type(value[0]) == str: # and not value[0].isdigit() add int support
+                        #     #     value=[' '.join(value)]
+                        #     # else:
+                        #     #     value=[' '.join([str(i) for i in value])]
+                        # elif type(value) == int:
+                        #     value=str(value)
+                        # # convert bools to binary ints
                         # else:
-                        #     value=[' '.join([str(i) for i in value])]
-                    elif type(value) == int:
+                        #     value=str(value)
+                        # print(value)
+                            # todo find a way to handle INTS, make a seperate model for int input
                         value=str(value)
-                    # convert bools to binary ints
-                    else:
-                        value=str(value)
-                    # print(value)
-                        # todo find a way to handle INTS, make a seperate model for int input
-                        
-                    # print(F"original {new_item} append {value} key {key} keys {keys_get}")
-                    new_item.append(value)
-                    passed+=1
-                except:
-                    failed+=1
-                break
-            if len(new_item) == len(keys_get):
-                new_item=[new_item[0]]+[' '.join(new_item[1:])]
+                        new_item[iwaldihasd].append(value)
+                        # print(F"{new_item} append {value} key {subkey} keys {keys_get}")
+                        passed+=1
+                    except:
+                        failed+=1
+                        break
+            if len(new_item[0]) == len(keys_get[0]) and len(new_item[1]) == len(keys_get[1]):
+                new_item=[' '.join(new_item[0])]+new_item[1]
                 items_vector.append(new_item) # due to unknown reason we receive empty values sometimes
+            else:
+                pass
+                # print(F"failed to append {new_item} because it has missing values")
     print(F"passed: {passed}\nfailed: {failed}")
     return items_vector
 
