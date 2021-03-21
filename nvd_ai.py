@@ -6,6 +6,17 @@ import random
 import datetime
 
 import nvd_helper
+import importlib
+def helper_reload():
+    importlib.reload(nvd_helper)
+
+# model_type='int' 'string' 'bool'
+
+# put everything in classes
+
+# class for raw nvd
+# class for datasets and preprocessing (int and string superclasses)
+# class for model
 
 
 string=['cvssv3_properties']
@@ -20,11 +31,15 @@ for i in nvd_properties:
 
 nvd=nvd_helper.load_json_nvd(directory)
 
+cve_item=nvd['nvdcve-1.1-2019.json']['CVE_Items'][0]
+
 items_vector=nvd_helper.extract(nvd, nvd_properties)
 
-labelmap=list(set([i[1] for i in items_vector]))
+# labelmap=list(set([i[1] for i in items_vector]))
+labelmap=list(set([i[1][0] for i in items_vector]))
 labelmap={labelmap[i]:i for i in range(len(labelmap))}
 print(labelmap)
+
 
 dataset_blncd=nvd_helper.balance(labelmap, items_vector)
 
@@ -52,8 +67,6 @@ epoch_num= 3
 
 # average length of strings
 def avgLen(x): return len(x[0])
-
-
 ds_len=list(map(avgLen, dataset_blncd))
 
 train_ds, val_ds, test_ds = nvd_helper.make_ds(dataset_blncd, batch_size, shuffle_size)
@@ -101,7 +114,6 @@ def export():
         vectorize_layer,
         model,
         layers.Activation('sigmoid')])
-
     export_model.compile(
         loss=losses.BinaryCrossentropy(from_logits=False), optimizer="adam", metrics=['accuracy'])
     return export_model
