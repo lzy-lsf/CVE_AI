@@ -19,3 +19,4 @@ NVD_DATASET
 
 - The Jupyter Notebook will prepare and train one or multiple datasets in the NVD_DATABASE
 - The model will be trained with the textual description of each vulnerability and the corresponding severity High, Medium or Low.
+- The ```nvd_ai``` and ```nvd_helper``` scripts contain experimental features
