@@ -1,5 +1,7 @@
 # CVE_AI
-Everything related to classifying, tagging, identifying CVE vulnerabilities using AI
+Everything related to classifying, tagging, identifying CVE vulnerabilities using AI.
+
+This project is rather an experiment to find out what can be done with AI on the NVD database.
 
 
 ### Obtaining the NVD (National Vulnerability Database)
